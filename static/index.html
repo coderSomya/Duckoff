@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Transaction Viewer</title>
+        <style>
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th,
+            td {
+                border: 1px solid #ddd;
+                padding: 8px;
+            }
+            th {
+                background-color: #f2f2f2;
+            }
+            form {
+                margin-bottom: 20px;
+            }
+            input {
+                margin-right: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Transactions</h1>
+
+        <form id="transaction-form">
+            <h2>Add Transaction</h2>
+            <label for="id">ID:</label>
+            <input type="text" id="id" name="id" required />
+            <label for="sender">Sender:</label>
+            <input type="text" id="sender" name="sender" required />
+            <label for="reciever">Reciever:</label>
+            <input type="text" id="reciever" name="reciever" required />
+            <label for="amount">Amount:</label>
+            <input type="number" id="amount" name="amount" required />
+            <label for="time">Time (YYYY-MM-DD HH:MM:SS):</label>
+            <input type="text" id="time" name="time" required />
+            <button type="submit">Add Transaction</button>
+        </form>
+
+        <form id="filter-form">
+            <h2>Filter Transactions</h2>
+            <label for="filter-sender">Sender:</label>
+            <input type="text" id="filter-sender" name="sender" />
+            <label for="filter-reciever">Reciever:</label>
+            <input type="text" id="filter-reciever" name="reciever" />
+            <label for="filter-id">ID:</label>
+            <input type="text" id="filter-id" name="id" />
+            <label for="filter-min-amount">Min Amount:</label>
+            <input type="number" id="filter-min-amount" name="min_amount" />
+            <label for="filter-max-amount">Max Amount:</label>
+            <input type="number" id="filter-max-amount" name="max_amount" />
+            <label for="filter-start-date">Start Date (YYYY-MM-DD):</label>
+            <input type="date" id="filter-start-date" name="start_date" />
+            <label for="filter-end-date">End Date (YYYY-MM-DD):</label>
+            <input type="date" id="filter-end-date" name="end_date" />
+            <button type="submit">Apply Filters</button>
+        </form>
+
+        <table id="transaction-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Sender</th>
+                    <th>Reciever</th>
+                    <th>Amount</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data will be inserted here -->
+            </tbody>
+        </table>
+
+        <script>
+            async function fetchTransactions(filters = {}) {
+                try {
+                    const params = new URLSearchParams(filters);
+                    const response = await fetch(
+                        `http://localhost:8080/api/transactions?${params.toString()}`,
+                    );
+                    const transactions = await response.json();
+
+                    const tableBody = document.querySelector(
+                        "#transaction-table tbody",
+                    );
+                    tableBody.innerHTML = "";
+
+                    transactions.forEach((transaction) => {
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                        <td>${transaction.id}</td>
+                        <td>${transaction.sender}</td>
+                        <td>${transaction.reciever}</td>
+                        <td>${transaction.amount}</td>
+                        <td>${transaction.time}</td>
+                    `;
+                        tableBody.appendChild(row);
+                    });
+                } catch (error) {
+                    console.error("Error fetching transactions:", error);
+                }
+            }
+
+            document.addEventListener("DOMContentLoaded", () => {
+                fetchTransactions();
+
+                document
+                    .getElementById("transaction-form")
+                    .addEventListener("submit", async (event) => {
+                        event.preventDefault();
+
+                        const formData = new FormData(event.target);
+                        let data = Object.fromEntries(formData.entries());
+                        data["amount"] = Number(data["amount"]);
+
+                        try {
+                            const response = await fetch(
+                                "http://localhost:8080/api/transactions",
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify(data),
+                                },
+                            );
+
+                            if (response.ok) {
+                                alert("Transaction added successfully");
+                                fetchTransactions(); // Refresh the transactions table
+                            } else {
+                                alert("Failed to add transaction");
+                            }
+                        } catch (error) {
+                            console.error("Error adding transaction:", error);
+                        }
+                    });
+
+                document
+                    .getElementById("filter-form")
+                    .addEventListener("submit", async (event) => {
+                        event.preventDefault();
+
+                        const filterData = new FormData(event.target);
+                        const filters = Object.fromEntries(
+                            filterData.entries(),
+                        );
+
+                        // Remove empty fields from the filters
+                        for (const key in filters) {
+                            if (!filters[key]) {
+                                delete filters[key];
+                            }
+                        }
+
+                        fetchTransactions(filters);
+                    });
+            });
+        </script>
+    </body>
+</html>
