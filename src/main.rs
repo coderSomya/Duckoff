@@ -1,3 +1,4 @@
+mod ws;
 use actix_files as fs;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
@@ -123,7 +124,10 @@ async fn get_transactions(params: web::Query<FilterParams>) -> impl Responder {
     HttpResponse::Ok().json(transactions)
 }
 
-async fn add_transaction(new_transaction: web::Json<NewTransaction>) -> impl Responder {
+async fn add_transaction(
+    new_transaction: web::Json<NewTransaction>,
+    ws_server: web::Data<ws::WsServer>,
+) -> impl Responder {
     let mut conn = Connection::open("transactions.db").expect("could not open connection");
 
     conn.execute_batch(
@@ -151,16 +155,23 @@ async fn add_transaction(new_transaction: web::Json<NewTransaction>) -> impl Res
     )
     .expect("Failed to insert transaction");
 
-    HttpResponse::Ok().body("Transaction added successfully")
+    let message = serde_json::to_string(&*new_transaction).unwrap();
+    ws_server.broadcast(message);
+
+    HttpResponse::Ok().body("Transaction was successfull..!")
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let ws_server = web::Data::new(ws::WsServer::new());
+
+    HttpServer::new(move || {
         App::new()
+            .app_data(ws_server.clone())
             .wrap(Logger::default())
             .route("/api/transactions", web::get().to(get_transactions))
             .route("/api/transactions", web::post().to(add_transaction))
+            .route("/ws/", web::get().to(ws::ws_index))
             .service(fs::Files::new("/", "./static").index_file("index.html"))
     })
     .bind("0.0.0.0:8080")?
